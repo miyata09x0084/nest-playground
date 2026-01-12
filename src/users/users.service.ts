@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { LoggerService } from '../common/logger.service';
 
 // ユーザーの型定義
 export interface User {
@@ -7,16 +8,22 @@ export interface User {
   email: string;
 }
 
-@Injectable() // このデコレータでDIコンテナに登録される
+@Injectable()
 export class UsersService {
+  private readonly context = 'UsersService';
+
   // 仮のデータベース（メモリ上）
   private users: User[] = [
     { id: 1, name: '田中太郎', email: 'tanaka@example.com' },
     { id: 2, name: '山田花子', email: 'yamada@example.com' },
   ];
 
+  // LoggerServiceを注入（グローバルモジュールなのでimport不要）
+  constructor(private readonly logger: LoggerService) {}
+
   // 全ユーザー取得
   findAll(): User[] {
+    this.logger.log(this.context, 'Finding all users');
     return this.users;
   }
 
@@ -38,6 +45,7 @@ export class UsersService {
       email,
     };
     this.users.push(newUser);
+    this.logger.log(this.context, `Created user: ${newUser.id} - ${name}`);
     return newUser;
   }
 
