@@ -8,74 +8,52 @@ import {
   Body,
   Query,
 } from '@nestjs/common';
+import { UsersService } from './users.service';
+import type { User } from './users.service';
 
-// ユーザーの型定義
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
-// 仮のデータベース（メモリ上）
-let users: User[] = [
-  { id: 1, name: '田中太郎', email: 'tanaka@example.com' },
-  { id: 2, name: '山田花子', email: 'yamada@example.com' },
-];
-
-@Controller('users') // ベースパス: /users
+@Controller('users')
 export class UsersController {
-  // GET /users - 全ユーザー取得
+  // コンストラクタインジェクション（依存性注入）
+  // NestJSが自動的にUsersServiceのインスタンスを注入してくれる
+  constructor(private readonly usersService: UsersService) {}
+
+  // GET /users
   @Get()
   findAll(): User[] {
-    return users;
+    return this.usersService.findAll();
   }
 
-  // GET /users/search?name=xxx - 名前で検索
+  // GET /users/search?name=xxx
   @Get('search')
   search(@Query('name') name: string): User[] {
-    return users.filter((user) => user.name.includes(name));
+    return this.usersService.search(name);
   }
 
-  // GET /users/:id - 特定ユーザー取得
+  // GET /users/:id
   @Get(':id')
   findOne(@Param('id') id: string): User | undefined {
-    return users.find((user) => user.id === Number(id));
+    return this.usersService.findOne(Number(id));
   }
 
-  // POST /users - 新規ユーザー作成
+  // POST /users
   @Post()
   create(@Body() body: { name: string; email: string }): User {
-    const newUser: User = {
-      id: users.length + 1,
-      name: body.name,
-      email: body.email,
-    };
-    users.push(newUser);
-    return newUser;
+    return this.usersService.create(body.name, body.email);
   }
 
-  // PUT /users/:id - ユーザー更新
+  // PUT /users/:id
   @Put(':id')
   update(
     @Param('id') id: string,
     @Body() body: { name?: string; email?: string },
   ): User | undefined {
-    const user = users.find((u) => u.id === Number(id));
-    if (user) {
-      if (body.name) user.name = body.name;
-      if (body.email) user.email = body.email;
-    }
-    return user;
+    return this.usersService.update(Number(id), body);
   }
 
-  // DELETE /users/:id - ユーザー削除
+  // DELETE /users/:id
   @Delete(':id')
   remove(@Param('id') id: string): { deleted: boolean } {
-    const index = users.findIndex((u) => u.id === Number(id));
-    if (index > -1) {
-      users.splice(index, 1);
-      return { deleted: true };
-    }
-    return { deleted: false };
+    const result = this.usersService.remove(Number(id));
+    return { deleted: result };
   }
 }
