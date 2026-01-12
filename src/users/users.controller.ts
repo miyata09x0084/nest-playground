@@ -7,14 +7,14 @@ import {
   Param,
   Body,
   Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
 import type { User } from './users.service';
 
 @Controller('users')
 export class UsersController {
-  // コンストラクタインジェクション（依存性注入）
-  // NestJSが自動的にUsersServiceのインスタンスを注入してくれる
   constructor(private readonly usersService: UsersService) {}
 
   // GET /users
@@ -29,31 +29,31 @@ export class UsersController {
     return this.usersService.search(name);
   }
 
-  // GET /users/:id
+  // GET /users/:id - ParseIntPipeで自動的に数値変換
   @Get(':id')
-  findOne(@Param('id') id: string): User | undefined {
-    return this.usersService.findOne(Number(id));
+  findOne(@Param('id', ParseIntPipe) id: number): User | undefined {
+    return this.usersService.findOne(id);
   }
 
-  // POST /users
+  // POST /users - DTOでバリデーション
   @Post()
-  create(@Body() body: { name: string; email: string }): User {
-    return this.usersService.create(body.name, body.email);
+  create(@Body() createUserDto: CreateUserDto): User {
+    return this.usersService.create(createUserDto.name, createUserDto.email);
   }
 
   // PUT /users/:id
   @Put(':id')
   update(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() body: { name?: string; email?: string },
   ): User | undefined {
-    return this.usersService.update(Number(id), body);
+    return this.usersService.update(id, body);
   }
 
   // DELETE /users/:id
   @Delete(':id')
-  remove(@Param('id') id: string): { deleted: boolean } {
-    const result = this.usersService.remove(Number(id));
+  remove(@Param('id', ParseIntPipe) id: number): { deleted: boolean } {
+    const result = this.usersService.remove(id);
     return { deleted: result };
   }
 }
