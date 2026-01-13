@@ -74,4 +74,30 @@ export class UsersService {
       return false;
     }
   }
+
+  // メールアドレスでユーザー検索（認証用）
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+    });
+  }
+
+  // パスワード付きユーザー作成（登録用）
+  async createWithPassword(
+    name: string,
+    email: string,
+    hashedPassword: string,
+    role: string = 'user',
+  ): Promise<User> {
+    const user = await this.prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+      },
+    });
+    this.logger.log(this.context, `Registered user: ${user.id} - ${user.email}`);
+    return user;
+  }
 }

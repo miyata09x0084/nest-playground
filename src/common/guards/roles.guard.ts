@@ -5,17 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
 import { ROLES_KEY, Role } from '../decorators/roles.decorator';
-
-// リクエストにユーザー情報を追加するための型拡張
-interface RequestWithUser extends Request {
-  user?: {
-    id: number;
-    name: string;
-    role: Role;
-  };
-}
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -35,24 +25,15 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<RequestWithUser>();
+    const request = context.switchToHttp().getRequest();
+    const user = request.user; // JWTから設定されたユーザー情報
 
-    // ヘッダーからロールを取得（実際はJWTトークン等から取得）
-    const userRole = request.headers['x-user-role'] as Role;
-
-    if (!userRole) {
-      throw new ForbiddenException('ユーザーロールが必要です');
+    if (!user || !user.role) {
+      throw new ForbiddenException('ユーザー認証が必要です');
     }
 
-    // 簡易的なユーザー情報をリクエストに追加
-    request.user = {
-      id: 1,
-      name: 'テストユーザー',
-      role: userRole,
-    };
-
     // 必要なロールのいずれかを持っているかチェック
-    const hasRole = requiredRoles.includes(userRole);
+    const hasRole = requiredRoles.includes(user.role as Role);
 
     if (!hasRole) {
       throw new ForbiddenException(

@@ -1,15 +1,19 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding database...');
 
+  // パスワードをハッシュ化
+  const hashedPassword = await bcrypt.hash('password123', 10);
+
   // ユーザーを作成
   const users = await prisma.user.createMany({
     data: [
-      { name: '田中太郎', email: 'tanaka@example.com' },
-      { name: '山田花子', email: 'yamada@example.com' },
+      { name: '田中太郎', email: 'tanaka@example.com', password: hashedPassword, role: 'user' },
+      { name: '山田花子', email: 'yamada@example.com', password: hashedPassword, role: 'admin' },
     ],
     skipDuplicates: true,
   });

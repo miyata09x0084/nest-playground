@@ -13,12 +13,11 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('users')
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(RolesGuard) // JwtAuthGuardはグローバルに適用済み
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
