@@ -1,41 +1,42 @@
 import { Injectable } from '@nestjs/common';
+import { User } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { LoggerService } from '../common/logger.service';
 import { UserNotFoundException } from '../common/exceptions/not-found.exception';
-
-// ユーザーの型定義
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-}
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
   private readonly context = 'UsersService';
 
-  // 仮のデータベース（メモリ上）
-  private users: User[] = [
-    { id: 1, name: '田中太郎', email: 'tanaka@example.com' },
-    { id: 2, name: '山田花子', email: 'yamada@example.com' },
-  ];
-
-  // LoggerServiceを注入（グローバルモジュールなのでimport不要）
-  constructor(private readonly logger: LoggerService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: LoggerService,
+  ) {}
 
   // 全ユーザー取得
-  findAll(): User[] {
+  async findAll(): Promise<User[]> {
     this.logger.log(this.context, 'Finding all users');
-    return this.users;
+    return this.prisma.user.findMany();
   }
 
   // 名前で検索
-  search(name: string): User[] {
-    return this.users.filter((user) => user.name.includes(name));
+  async search(name: string): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: {
+        name: {
+          contains: name,
+        },
+      },
+    });
   }
 
   // ID指定で取得（見つからない場合は例外をスロー）
-  findOne(id: number): User {
-    const user = this.users.find((user) => user.id === id);
+  async findOne(id: number): Promise<User> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
     if (!user) {
       throw new UserNotFoundException(id);
     }
@@ -43,34 +44,34 @@ export class UsersService {
   }
 
   // 新規作成
-  create(name: string, email: string): User {
-    const newUser: User = {
-      id: this.users.length + 1,
-      name,
-      email,
-    };
-    this.users.push(newUser);
-    this.logger.log(this.context, `Created user: ${newUser.id} - ${name}`);
-    return newUser;
-  }
-
-  // 更新
-  update(id: number, data: { name?: string; email?: string }): User | undefined {
-    const user = this.users.find((u) => u.id === id);
-    if (user) {
-      if (data.name) user.name = data.name;
-      if (data.email) user.email = data.email;
-    }
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    const user = await this.prisma.user.create({
+      data: createUserDto,
+    });
+    this.logger.log(this.context, `Created user: ${user.id} - ${user.name}`);
     return user;
   }
 
+  // 更新
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+    // まず存在確認
+    await this.findOne(id);
+
+    return this.prisma.user.update({
+      where: { id },
+      data: updateUserDto,
+    });
+  }
+
   // 削除
-  remove(id: number): boolean {
-    const index = this.users.findIndex((u) => u.id === id);
-    if (index > -1) {
-      this.users.splice(index, 1);
+  async remove(id: number): Promise<boolean> {
+    try {
+      await this.prisma.user.delete({
+        where: { id },
+      });
       return true;
+    } catch {
+      return false;
     }
-    return false;
   }
 }

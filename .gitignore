@@ -14,6 +14,11 @@ dist/
 # Environment
 .env
 .env.local
+.env.*
 
 # Coverage
 coverage/
+
+# Database
+*.sqlite
+data/

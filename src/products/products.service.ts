@@ -1,62 +1,90 @@
 import { Injectable } from '@nestjs/common';
+import { Product } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
+import { PrismaService } from '../prisma/prisma.service';
 import { ProductNotFoundException } from '../common/exceptions/not-found.exception';
-
-export interface Product {
-  id: number;
-  name: string;
-  price: number;
-  stock: number;
-}
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductsService {
-  private products: Product[] = [
-    { id: 1, name: 'ノートPC', price: 120000, stock: 10 },
-    { id: 2, name: 'マウス', price: 3000, stock: 50 },
-    { id: 3, name: 'キーボード', price: 8000, stock: 30 },
-    { id: 4, name: 'モニター', price: 45000, stock: 15 },
-  ];
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): Product[] {
-    return this.products;
+  async findAll(): Promise<Product[]> {
+    return this.prisma.product.findMany();
   }
 
-  findOne(id: number): Product {
-    const product = this.products.find((p) => p.id === id);
+  async findOne(id: number): Promise<Product> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+    });
     if (!product) {
       throw new ProductNotFoundException(id);
     }
     return product;
   }
 
-  findByName(name: string): Product | undefined {
-    return this.products.find((p) => p.name === name);
+  async findByName(name: string): Promise<Product | null> {
+    return this.prisma.product.findFirst({
+      where: { name },
+    });
   }
 
-  create(name: string, price: number, stock: number): Product {
-    const newProduct: Product = {
-      id: this.products.length + 1,
-      name,
-      price,
-      stock,
-    };
-    this.products.push(newProduct);
-    return newProduct;
+  async create(createProductDto: CreateProductDto): Promise<Product> {
+    return this.prisma.product.create({
+      data: {
+        name: createProductDto.name,
+        price: new Decimal(createProductDto.price),
+        stock: createProductDto.stock,
+      },
+    });
   }
 
-  updateStock(id: number, quantity: number): Product | undefined {
-    const product = this.products.find((p) => p.id === id);
-    if (product) {
-      product.stock += quantity;
+  async update(id: number, updateProductDto: UpdateProductDto): Promise<Product> {
+    await this.findOne(id);
+
+    const data: {
+      name?: string;
+      price?: Decimal;
+      stock?: number;
+    } = {};
+
+    if (updateProductDto.name !== undefined) {
+      data.name = updateProductDto.name;
     }
-    return product;
+    if (updateProductDto.price !== undefined) {
+      data.price = new Decimal(updateProductDto.price);
+    }
+    if (updateProductDto.stock !== undefined) {
+      data.stock = updateProductDto.stock;
+    }
+
+    return this.prisma.product.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async updateStock(id: number, quantity: number): Promise<Product> {
+    const product = await this.findOne(id);
+    return this.prisma.product.update({
+      where: { id },
+      data: {
+        stock: product.stock + quantity,
+      },
+    });
   }
 
   // 在庫を減らす（注文時に使用）
-  decreaseStock(id: number, quantity: number): boolean {
-    const product = this.products.find((p) => p.id === id);
-    if (product && product.stock >= quantity) {
-      product.stock -= quantity;
+  async decreaseStock(id: number, quantity: number): Promise<boolean> {
+    const product = await this.findOne(id);
+    if (product.stock >= quantity) {
+      await this.prisma.product.update({
+        where: { id },
+        data: {
+          stock: product.stock - quantity,
+        },
+      });
       return true;
     }
     return false;

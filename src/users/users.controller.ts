@@ -12,13 +12,11 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import type { User } from './users.service';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 
-// @UseGuards(AuthGuard) - コントローラー全体にAPI Key認証を適用
-// @UseGuards(AuthGuard, RolesGuard) - 複数のガードを適用（左から順に実行）
 @Controller('users')
 @UseGuards(AuthGuard, RolesGuard)
 export class UsersController {
@@ -26,42 +24,44 @@ export class UsersController {
 
   // GET /users
   @Get()
-  findAll(): User[] {
+  findAll() {
     return this.usersService.findAll();
   }
 
   // GET /users/search?name=xxx
   @Get('search')
-  search(@Query('name') name: string): User[] {
+  search(@Query('name') name: string) {
     return this.usersService.search(name);
   }
 
-  // GET /users/:id - ParseIntPipeで自動的に数値変換
+  // GET /users/:id
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number): User {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findOne(id);
   }
 
-  // POST /users - DTOでバリデーション
+  // POST /users
   @Post()
-  create(@Body() createUserDto: CreateUserDto): User {
-    return this.usersService.create(createUserDto.name, createUserDto.email);
+  create(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.create(createUserDto);
   }
 
   // PUT /users/:id
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { name?: string; email?: string },
-  ): User | undefined {
-    return this.usersService.update(id, body);
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.usersService.update(id, updateUserDto);
   }
 
   // DELETE /users/:id - 管理者のみ削除可能
   @Delete(':id')
   @Roles('admin')
-  remove(@Param('id', ParseIntPipe) id: number): { deleted: boolean } {
-    const result = this.usersService.remove(id);
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ deleted: boolean }> {
+    const result = await this.usersService.remove(id);
     return { deleted: result };
   }
 }

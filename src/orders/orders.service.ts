@@ -1,97 +1,115 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { Order, User, Product } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
+import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { ProductsService } from '../products/products.service';
 import { LoggerService } from '../common/logger.service';
-import type { User } from '../users/users.service';
-import type { Product } from '../products/products.service';
+import { CreateOrderDto } from './dto/create-order.dto';
 
-export interface Order {
+// リレーションを含む注文の型
+export type OrderWithRelations = Order & {
+  user: User;
+  product: Product;
+};
+
+// 詳細情報付きの注文
+export interface OrderDetail {
   id: number;
   userId: number;
   productId: number;
   quantity: number;
-}
-
-export interface OrderDetail extends Order {
-  user?: User;
-  product?: Product;
-  totalPrice?: number;
+  createdAt: Date;
+  user: User;
+  product: Product;
+  totalPrice: number;
 }
 
 @Injectable()
 export class OrdersService {
   private readonly context = 'OrdersService';
 
-  private orders: Order[] = [
-    { id: 1, userId: 1, productId: 1, quantity: 1 },
-    { id: 2, userId: 2, productId: 2, quantity: 2 },
-    { id: 3, userId: 1, productId: 3, quantity: 1 },
-  ];
-
   constructor(
+    private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly productsService: ProductsService,
     private readonly logger: LoggerService,
   ) {}
 
   // 注文に詳細情報を付加
-  private enrichOrder(order: Order): OrderDetail {
-    const user = this.usersService.findOne(order.userId);
-    const product = this.productsService.findOne(order.productId);
+  private enrichOrder(order: OrderWithRelations): OrderDetail {
+    const price = order.product.price instanceof Decimal
+      ? order.product.price.toNumber()
+      : Number(order.product.price);
+
     return {
-      ...order,
-      user,
-      product,
-      totalPrice: product ? product.price * order.quantity : 0,
+      id: order.id,
+      userId: order.userId,
+      productId: order.productId,
+      quantity: order.quantity,
+      createdAt: order.createdAt,
+      user: order.user,
+      product: order.product,
+      totalPrice: price * order.quantity,
     };
   }
 
   // 全注文を取得（ユーザー・商品情報付き）
-  findAll(): OrderDetail[] {
+  async findAll(): Promise<OrderDetail[]> {
     this.logger.log(this.context, 'Finding all orders');
-    return this.orders.map((order) => this.enrichOrder(order));
+    const orders = await this.prisma.order.findMany({
+      include: {
+        user: true,
+        product: true,
+      },
+    });
+    return orders.map((order) => this.enrichOrder(order));
   }
 
   // 特定ユーザーの注文を取得
-  findByUserId(userId: number): OrderDetail[] {
-    return this.orders
-      .filter((order) => order.userId === userId)
-      .map((order) => this.enrichOrder(order));
+  async findByUserId(userId: number): Promise<OrderDetail[]> {
+    const orders = await this.prisma.order.findMany({
+      where: { userId },
+      include: {
+        user: true,
+        product: true,
+      },
+    });
+    return orders.map((order) => this.enrichOrder(order));
   }
 
   // 注文を作成（在庫チェック付き）
-  create(
-    userId: number,
-    productId: number,
-    quantity: number,
-  ): OrderDetail | { error: string } {
-    const user = this.usersService.findOne(userId);
-    if (!user) {
-      return { error: 'User not found' };
-    }
+  async create(createOrderDto: CreateOrderDto): Promise<OrderDetail> {
+    const { userId, productId, quantity } = createOrderDto;
 
-    const product = this.productsService.findOne(productId);
-    if (!product) {
-      return { error: 'Product not found' };
-    }
+    // ユーザー存在確認
+    await this.usersService.findOne(userId);
+
+    // 商品存在確認
+    await this.productsService.findOne(productId);
 
     // 在庫チェックと減少
-    const stockDecreased = this.productsService.decreaseStock(
+    const stockDecreased = await this.productsService.decreaseStock(
       productId,
       quantity,
     );
     if (!stockDecreased) {
-      return { error: 'Insufficient stock' };
+      throw new BadRequestException('在庫が不足しています');
     }
 
-    const newOrder: Order = {
-      id: this.orders.length + 1,
-      userId,
-      productId,
-      quantity,
-    };
-    this.orders.push(newOrder);
+    // 注文作成
+    const order = await this.prisma.order.create({
+      data: {
+        userId,
+        productId,
+        quantity,
+      },
+      include: {
+        user: true,
+        product: true,
+      },
+    });
 
-    return this.enrichOrder(newOrder);
+    return this.enrichOrder(order);
   }
 }
