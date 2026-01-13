@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { LoggerService } from '../common/logger.service';
+import { UserNotFoundException } from '../common/exceptions/not-found.exception';
 
 // ユーザーの型定義
 export interface User {
@@ -32,9 +33,13 @@ export class UsersService {
     return this.users.filter((user) => user.name.includes(name));
   }
 
-  // ID指定で取得
-  findOne(id: number): User | undefined {
-    return this.users.find((user) => user.id === id);
+  // ID指定で取得（見つからない場合は例外をスロー）
+  findOne(id: number): User {
+    const user = this.users.find((user) => user.id === id);
+    if (!user) {
+      throw new UserNotFoundException(id);
+    }
+    return user;
   }
 
   // 新規作成
